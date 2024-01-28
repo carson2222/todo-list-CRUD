@@ -17,14 +17,6 @@ const pool = new Pool({
 async function databaseConnect() {
   try {
     client = await pool.connect();
-    // rows = await client.query("select * from users");
-    // console.log(rows);
-    // const userData = rows.find((el) => el.name === inputName);
-    // if (userData) {
-    //   console.log(`Welcome ${userData.name} your ID is ${userData.id}`);
-    // } else {
-    //   console.log("failed to log in");
-    // }
     return client;
   } catch (error) {
     console.error(error);
