@@ -1,10 +1,9 @@
-const askQuestion = require("./askQuestion");
 const priorityTypes = ["a", "b", "c", "d", "e"];
 async function handleNew() {
   let addSuccess = false;
   while (!addSuccess) {
     console.log("new");
-    const itemNameAnswer = await askQuestion("Enter name of your new TODO task");
+    const itemNameAnswer = await this.askQuestion("Enter name of your new TODO task");
     const argv = yargs.parse(itemNameAnswer);
     const itemName = argv?._[0];
     if (!itemName) {
@@ -12,7 +11,7 @@ async function handleNew() {
       continue;
     }
 
-    const itemPriorityAnswer = await askQuestion("Enter priority of your new TODO task (A, B, C, D, E)");
+    const itemPriorityAnswer = await this.askQuestion("Enter priority of your new TODO task (A, B, C, D, E)");
     const argv2 = yargs.parse(itemPriorityAnswer);
     const itemPriority = argv?._[0]?.toLowerCase();
     if (!priorityTypes.some((el) => el === itemPriority)) {
