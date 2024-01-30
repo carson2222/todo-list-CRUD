@@ -1,6 +1,7 @@
 const { databaseConnect } = require("./databaseConnect");
 const chalk = require("chalk");
 const readline = require("readline");
+const { version } = require("./package.json");
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
@@ -221,7 +222,7 @@ class App {
   }
 
   handleVersion() {
-    console.log("Done");
+    console.log(chalk.bold(`App version: ${version}`));
     return this.todoManage();
   }
 
