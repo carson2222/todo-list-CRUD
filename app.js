@@ -11,7 +11,7 @@ const yargs = require("yargs");
 class App {
   constructor() {
     this.client;
-    this.users;
+    // this.users;
     this.userData;
     this.loggedStatus = false;
     this.programRun = true;
@@ -25,15 +25,11 @@ class App {
       this.client = await databaseConnect();
       if (!this.client) throw new Error("Failed to connect to the Database");
 
-      // Get users data from database
-      const { rows } = await this.client.query(`SELECT * FROM users`);
-      this.users = rows;
-      if (!rows) throw new Error("Failed to get users data");
-
       // Start the app
-      console.log("🥰😘🥰------------------------🥰😘🥰");
+      console.log(chalk.yellow("------------------------"));
       console.log("Welcome in the TODO List app");
       console.log("To start, you have to log in to your todo list or create a new one");
+      console.log(chalk.bold("TIP:") + ' type "exit" to leave the program anytime');
       return this.auth();
     } catch (error) {
       console.error(chalk.red(error.message));
@@ -65,21 +61,28 @@ class App {
       const [name] = await this.askQuestion("Enter your name");
       if (!name) throw new Error("Name can NOT be empty");
 
-      // Update users data
-      await this.updateUsers();
-      // Get the user data
-      this.userData = this.users.filter((el) => el.name === name)?.[0];
+      // Check if the user exist
+      const { rows: userExist } = await this.client.query(`SELECT id, name FROM users WHERE name = '${name}'`);
+      if (!userExist[0]) throw new Error(`There is no user with name: ${name}, try again`);
 
-      // Throw error if there is no such a user
-      if (!this.userData) throw new Error("Couldn't find the user");
+      // Get password
+      const [password] = await this.askQuestion("Enter your password");
+      if (!password) throw new Error("Password can NOT be empty");
+
+      // Check if the password matches
+      const { rows: user } = await this.client.query(
+        `SELECT id, name FROM users WHERE name = '${name}' AND password = crypt('${password}', password);`
+      );
+
+      if (!user?.[0]) throw new Error("Wrong password");
 
       // Login and start the app
+      this.userData = user?.[0];
       this.loggedStatus = true;
       console.log(chalk.green(chalk.bold("Successfully logged in")));
       return this.todoManage();
     } catch (error) {
       console.error(chalk.red(error.message));
-
       return this.logIn();
     }
   }
@@ -89,7 +92,24 @@ class App {
       // Get user's new name
       const [newName] = await this.askQuestion("Enter new name:");
       // Validate for empty input
-      if (!newName) throw new Error("Wrong input, try again");
+      if (!newName) throw new Error("Name can NOT be empty");
+
+      // Check if the user already exist
+      const { rows } = await this.client.query(`SELECT id, name FROM users WHERE name = '${newName}'`);
+      if (rows?.[0]) throw new Error(`"${newName}" user already exist`);
+
+      // Get user's new name
+      const [password] = await this.askQuestion("Enter new password:");
+      // Validate password
+      if (
+        password.length < 8 ||
+        !/[A-Z]/.test(password) ||
+        !/\d/.test(password) ||
+        !/[!@#$%^&*(),.?":{}|<>]/.test(password)
+      )
+        throw new Error(
+          "The password must be at least 8 characters long, 1 number, 1 special character and 1 uppercase letter"
+        );
 
       // New user create confirmation
       const [bool] = await this.askQuestion(
@@ -100,13 +120,19 @@ class App {
         return this.register();
       }
 
-      // Check if the user already exist
-      if (this.users.find((el) => el.name === newName)) throw new Error(`"${newName}" user already exist`);
+      // Insert new user into database
+      const x = await this.client.query(
+        `INSERT INTO users(name, password) VALUES ('${newName}', crypt('${password}', gen_salt('bf')))`
+      );
 
-      // Insert new user into database & launch the
-      const x = await this.client.query(`INSERT INTO users(name) VALUES ('${newName}')`);
-      await this.updateUsers();
-      this.userData = this.users.filter((el) => el.name === newName)?.[0];
+      // Update userData
+      const { rows: user } = await this.client.query(
+        `SELECT id, name FROM users WHERE name = '${newName}' AND password = crypt('${password}', password);`
+      );
+      if (!user?.[0]) throw new Error("Failed to log into account");
+
+      // Launch the app
+      this.userData = user[0];
       this.loggedStatus = true;
       console.log(`User ${newName} has been created`);
       return this.todoManage();
@@ -122,6 +148,10 @@ class App {
       rl.question(`${chalk.bold(chalk.yellow(prompt))}\n`, (answer) => {
         // Parse the user's answer using the yargs library
         const argv = yargs.parse(answer);
+
+        // Check if the user want's to exit the program any time
+        if (argv?._[0]?.toLowerCase() === "end") return this.handleEnd();
+
         // Resolve the promise with the parsed answer
         resolve(argv?._);
       });
@@ -131,7 +161,7 @@ class App {
   async todoManage() {
     // Display the information message only at the first app usage
     if (this.firstUse) {
-      console.log(`\n ${chalk.bold("Hey" + this.userData.name)}! Now you can manage your todo list`);
+      console.log(`\n${chalk.bold("Hey " + this.userData.name)}! Now you can manage your todo list`);
       console.log(`${chalk.bold("TIP:")} Enter "helpMe" for a command list`);
       this.firstUse = false;
     }
@@ -232,7 +262,7 @@ class App {
   }
 
   handleEnd() {
-    console.log("Thank's for using our TODO app, we hope you enjoy it!");
+    console.log(chalk.red("Thank's for using our TODO app, we hope you enjoy it!"));
     process.exit(0);
   }
 
