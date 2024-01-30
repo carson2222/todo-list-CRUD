@@ -188,9 +188,9 @@ class App {
 
       // Add new todo task
       await this.client.query(
-        `INSERT INTO todo_items (user_id, title, priority) VALUES (${this.userData.id}, '${itemName}', '${itemPriority}')`
+        `INSERT INTO todo_items (user_id, title, priority, status) VALUES (${this.userData.id}, '${itemName}', '${itemPriority}', 'pending')`
       );
-      console.log("Task added successfully");
+      console.log(chalk.green("Task added successfully"));
     } catch (error) {
       console.error(chalk.red(error.message));
     } finally {
