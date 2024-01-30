@@ -1,4 +1,5 @@
 const { databaseConnect } = require("./databaseConnect");
+const chalk = require("chalk");
 const readline = require("readline");
 const rl = readline.createInterface({
   input: process.stdin,
@@ -34,14 +35,15 @@ class App {
       console.log("To start, you have to log in to your todo list or create a new one");
       return this.auth();
     } catch (error) {
-      console.error(`${error.message} 💥💥💥`);
+      console.error(chalk.red(error.message));
+
       return this.init();
     }
   }
 
   async auth() {
     try {
-      const [action] = await this.askQuestion("What do you want to do? (login/create)");
+      const [action] = await this.askQuestion(`What do you want to do? ${chalk.italic("(login/create)")}`);
 
       // Start login process
       if (action?.toLowerCase() === "login") return this.logIn();
@@ -50,9 +52,9 @@ class App {
       if (action?.toLowerCase() === "create") return this.register();
 
       // Throw error if the input does not match action types
-      throw new Error("Wrong answer, the input should be: (login/create)");
+      throw new Error(`Wrong answer, the input should be: ${chalk.italic("(login/create)")}`);
     } catch (error) {
-      console.error(`${error.message} 💥💥💥`);
+      console.error(chalk.red(error.message));
     }
   }
 
@@ -72,10 +74,11 @@ class App {
 
       // Login and start the app
       this.loggedStatus = true;
-      console.log("Successfully logged in ✅");
+      console.log(chalk.green(chalk.bold("Successfully logged in")));
       return this.todoManage();
     } catch (error) {
-      console.error(`${error.message} 💥💥💥`);
+      console.error(chalk.red(error.message));
+
       return this.logIn();
     }
   }
@@ -115,7 +118,7 @@ class App {
   askQuestion(prompt) {
     return new Promise((resolve) => {
       // Use the readline interface to ask the user a question
-      rl.question(`${prompt}\n`, (answer) => {
+      rl.question(`${chalk.bold(chalk.yellow(prompt))}\n`, (answer) => {
         // Parse the user's answer using the yargs library
         const argv = yargs.parse(answer);
         // Resolve the promise with the parsed answer
@@ -127,8 +130,8 @@ class App {
   async todoManage() {
     // Display the information message only at the first app usage
     if (this.firstUse) {
-      console.log(`\nHey ${this.userData.name}! Now you can manage your todo list`);
-      console.log('TIP: Enter "helpMe" for a command list');
+      console.log(`\n ${chalk.bold("Hey" + this.userData.name)}! Now you can manage your todo list`);
+      console.log(`${chalk.bold("TIP:")} Enter "helpMe" for a command list`);
       this.firstUse = false;
     }
 
@@ -153,7 +156,7 @@ class App {
         return this.handleEnd();
       default:
         // Restart if the user used incorrect command
-        console.log(`The ${command} command not found. Use "helpMe"`);
+        console.log(chalk.red(`The ${command} command not found. Use "helpMe"`));
         return this.todoManage();
     }
   }
@@ -189,7 +192,7 @@ class App {
       );
       console.log("Task added successfully");
     } catch (error) {
-      console.error(`${error.message} 💥💥💥`);
+      console.error(chalk.red(error.message));
     } finally {
       return this.todoManage();
     }
@@ -206,7 +209,14 @@ class App {
   }
 
   handleHelp() {
-    console.log("Help");
+    console.log(chalk.underline("Here is the list of all commands:"));
+    console.log(`${chalk.bold("new")} - ${chalk.gray("add a new todo item")}`);
+    console.log(`${chalk.bold("list <all|pending|done>")} - ${chalk.gray("list the todo items")}`);
+    console.log(`${chalk.bold("done <id>")} - ${chalk.gray("update a todo item")}`);
+    console.log(`${chalk.bold("delete <id>")} - ${chalk.gray("delete a todo item")}`);
+    console.log(`${chalk.bold("helpMe")} - ${chalk.gray("list all the available commands")}`);
+    console.log(`${chalk.bold("version")} - ${chalk.gray("print the version of the application")}`);
+
     return this.todoManage();
   }
 
