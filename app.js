@@ -1,13 +1,4 @@
 const { databaseConnect } = require("./databaseConnect");
-// const {
-//   handleNew,
-//   handleList,
-//   handleDone,
-//   handleHelp,
-//   handleVersion,
-//   handleDelete,
-//   handleEnd,
-// } = require("./handlers");
 const readline = require("readline");
 const rl = readline.createInterface({
   input: process.stdin,
@@ -28,16 +19,23 @@ class App {
 
   async init() {
     try {
+      // Database connect
       this.client = await databaseConnect();
+      if (!this.client) throw new Error("Failed to connect to the Database");
+
+      // Get users data from database
       const { rows } = await this.client.query(`SELECT * FROM users`);
       this.users = rows;
+      if (!rows) throw new Error("Failed to get users data");
 
+      // Start the app
       console.log("🥰😘🥰------------------------🥰😘🥰");
       console.log("Welcome in the TODO List app");
       console.log("To start, you have to log in to your todo list or create a new one");
-      this.auth();
+      return this.auth();
     } catch (error) {
-      console.error(error);
+      console.error(`${error.message} 💥💥💥`);
+      return this.init();
     }
   }
 
@@ -45,46 +43,51 @@ class App {
     try {
       const [action] = await this.askQuestion("What do you want to do? (login/create)");
 
-      // LOGIN
-      if (action === "login") {
-        return this.logIn();
-      }
+      // Start login process
+      if (action?.toLowerCase() === "login") return this.logIn();
 
-      // CREATE
-      if (action === "create") {
-        return this.register();
-      }
+      // Start registering process
+      if (action?.toLowerCase() === "create") return this.register();
+
+      // Throw error if the input does not match action types
+      throw new Error("Wrong answer, the input should be: (login/create)");
     } catch (error) {
-      console.error(error);
+      console.error(`${error.message} 💥💥💥`);
     }
   }
 
   async logIn() {
-    const [name] = await this.askQuestion("Enter your name");
-    if (!name) {
-      console.log("Input can't be empty");
+    try {
+      // Get user's name
+      const [name] = await this.askQuestion("Enter your name");
+      if (!name) throw new Error("Name can NOT be empty");
+
+      // Update users data
+      await this.updateUsers();
+      // Get the user data
+      this.userData = this.users.filter((el) => el.name === name)?.[0];
+
+      // Throw error if there is no such a user
+      if (!this.userData) throw new Error("Couldn't find the user");
+
+      // Login and start the app
+      this.loggedStatus = true;
+      console.log("Successfully logged in ✅");
+      return this.todoManage();
+    } catch (error) {
+      console.error(`${error.message} 💥💥💥`);
       return this.logIn();
     }
-    await this.updateUsers();
-    this.userData = this.users.filter((el) => el.name === name)?.[0];
-
-    if (!this.userData) {
-      console.log("Couldn't find the user");
-      return this.logIn();
-    }
-
-    this.loggedStatus = true;
-    console.log("Successfully logged in");
-    return this.todoManage();
   }
+
   async register() {
     try {
+      // Get user's new name
       const [newName] = await this.askQuestion("Enter new name:");
-      if (!newName) {
-        console.log("Wrong input, try again");
-        return this.register();
-      }
+      // Validate for empty input
+      if (!newName) throw new Error("Wrong input, try again");
 
+      // New user create confirmation
       const [bool] = await this.askQuestion(
         `Are you sure you want to create a new user with name ${newName} (y/n)`
       );
@@ -93,11 +96,10 @@ class App {
         return this.register();
       }
 
-      if (this.users.find((el) => el.name === newName)) {
-        console.log("User already exist");
-        return this.register();
-      }
+      // Check if the user already exist
+      if (this.users.find((el) => el.name === newName)) throw new Error(`"${newName}" user already exist`);
 
+      // Insert new user into database & launch the
       const x = await this.client.query(`INSERT INTO users(name) VALUES ('${newName}')`);
       await this.updateUsers();
       this.userData = this.users.filter((el) => el.name === newName)?.[0];
@@ -105,29 +107,34 @@ class App {
       console.log(`User ${newName} has been created`);
       return this.todoManage();
     } catch (error) {
-      console.log("Database query error, try again");
-      console.error(error);
+      console.error(`${error.message} 💥💥💥`);
       return this.register();
     }
   }
 
   askQuestion(prompt) {
     return new Promise((resolve) => {
+      // Use the readline interface to ask the user a question
       rl.question(`${prompt}\n`, (answer) => {
+        // Parse the user's answer using the yargs library
         const argv = yargs.parse(answer);
+        // Resolve the promise with the parsed answer
         resolve(argv?._);
       });
     });
   }
 
   async todoManage() {
+    // Display the information message only at the first app usage
     if (this.firstUse) {
       console.log(`\nHey ${this.userData.name}! Now you can manage your todo list`);
       console.log('TIP: Enter "helpMe" for a command list');
       this.firstUse = false;
     }
 
+    // Ask user for the command
     const [command, parameter] = await this.askQuestion("Enter command:");
+
     // Commands usage
     switch (command) {
       case "new":
@@ -145,12 +152,14 @@ class App {
       case "end":
         return this.handleEnd();
       default:
+        // Restart if the user used incorrect command
+        console.log(`The ${command} command not found. Use "helpMe"`);
         return this.todoManage();
     }
   }
+
   async handleNew() {
     try {
-      console.log("new");
       // Get TODO item name
       const itemNameArr = await this.askQuestion("Enter name of your new TODO task:");
       const itemName = itemNameArr.join(" ");
@@ -175,13 +184,12 @@ class App {
       }
 
       // Add new todo task
-      const x = await this.client.query(
+      await this.client.query(
         `INSERT INTO todo_items (user_id, title, priority) VALUES (${this.userData.id}, '${itemName}', '${itemPriority}')`
       );
       console.log("Task added successfully");
-
     } catch (error) {
-      console.error(error.message + 💥💥💥);
+      console.error(`${error.message} 💥💥💥`);
     } finally {
       return this.todoManage();
     }
@@ -191,26 +199,32 @@ class App {
     console.log("List");
     return this.todoManage();
   }
+
   handleDone() {
     console.log("Done");
     return this.todoManage();
   }
+
   handleHelp() {
     console.log("Help");
     return this.todoManage();
   }
+
   handleVersion() {
     console.log("Done");
     return this.todoManage();
   }
+
   handleDelete(id) {
     console.log(`Deleting todo item with ID ${id}`);
     return this.todoManage();
   }
+
   handleEnd() {
     console.log("Thank's for using our TODO app, we hope you enjoy it!");
     process.exit(0);
   }
+
   async updateUsers() {
     const { rows } = await this.client.query(`SELECT * FROM users`);
     this.users = rows;
@@ -219,24 +233,3 @@ class App {
 
 const app1 = new App();
 app1.init();
-
-// async function app() {
-
-//   // Logging Status
-//   while (!loggedStatus) {
-
-//     console.log("Wrong input");
-//   }
-//   // main functionality
-
-//   while (programRun) {
-//     const commandAnswer = await this.askQuestion("Enter command:");
-//     const argv = yargs.parse(commandAnswer);
-//     const commandName = argv?._[0]?.toLowerCase();
-//     const parameter = argv?._[1];
-//     // console.log(commandName, parameter);
-
-//
-//   }
-// }
-// app();

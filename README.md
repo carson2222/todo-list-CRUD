@@ -17,8 +17,7 @@ Based on Github API: https://docs.github.com/en/rest/search#search-repositories
 Example respond:
 
 ```
-Rename complete
-[ 'test.html', 'test.js' ]
+
 ```
 
 development.env patern
