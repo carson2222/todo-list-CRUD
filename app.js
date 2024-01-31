@@ -2,6 +2,7 @@ const { databaseConnect } = require("./databaseConnect");
 const chalk = require("chalk");
 const readline = require("readline");
 const { version } = require("./package.json");
+const _ = require("lodash");
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
@@ -11,7 +12,6 @@ const yargs = require("yargs");
 class App {
   constructor() {
     this.client;
-    // this.users;
     this.userData;
     this.loggedStatus = false;
     this.programRun = true;
@@ -52,6 +52,7 @@ class App {
       throw new Error(`Wrong answer, the input should be: ${chalk.italic("(login/create)")}`);
     } catch (error) {
       console.error(chalk.red(error.message));
+      return this.auth();
     }
   }
 
@@ -229,8 +230,21 @@ class App {
     }
   }
 
-  handleList() {
-    console.log("List");
+  async handleList(parameter) {
+    console.log(parameter);
+    // Run different query depends on the parameter specified
+    const parameters = ["all", "pending", "done"];
+    if (!parameters.includes(parameter?.toLowerCase())) {
+      console.log(
+        chalk.red(`Parameter: "${parameter}" does not exists. Here are the options: (${parameters.join("/")})`)
+      );
+      return this.todoManage();
+    }
+
+    const list = await this.listGet(parameter);
+    if (!list) return this.todoManage();
+    const listSorted = await this.listSort(list, parameter);
+    this.listDisplay(listSorted);
     return this.todoManage();
   }
 
@@ -265,10 +279,74 @@ class App {
     console.log(chalk.red("Thank's for using our TODO app, we hope you enjoy it!"));
     process.exit(0);
   }
+  async listGet(type) {
+    // Get TODOs data for the user depending on the type
+    let list = [];
 
-  async updateUsers() {
-    const { rows } = await this.client.query(`SELECT * FROM users`);
-    this.users = rows;
+    switch (type) {
+      case "all":
+        const { rows: listAll } = await this.client.query(
+          `SELECT * FROM todo_items WHERE user_id = '${this.userData.id}'`
+        );
+        list = listAll;
+        break;
+      case "pending":
+        const { rows: listPending } = await this.client.query(
+          `SELECT * FROM todo_items WHERE user_id = '${this.userData.id}' AND status = 'pending'`
+        );
+        list = listPending;
+        break;
+      case "done":
+        const { rows: listDone } = await this.client.query(
+          `SELECT * FROM todo_items WHERE user_id = '${this.userData.id}' AND status = 'done'`
+        );
+        list = listDone;
+        break;
+    }
+
+    // Check if the data is empty
+    if (list.length === 0) {
+      if (type === "all") {
+        console.log(chalk.red("You have no tasks TODO"));
+      } else {
+        console.log(chalk.red(`You have no tasks TODO with a status of ${chalk.bold(type)}`));
+        console.log(chalk.italic('You can add new items by using "new"'));
+      }
+      return undefined;
+    }
+
+    return list;
+  }
+
+  async listSort(list, type) {
+    // If there is only 1 item, just return the list back
+    if (list.length === 1) return list;
+
+    // Sort data if there are more than 1 items
+    if (list.length > 1) {
+      // Ask user for a sortingType
+      let sortingTypes = ["date", "title", "priority", "status"];
+      if (type !== "all") sortingTypes = sortingTypes.filter((el) => el !== "status");
+      let [sorting] = await this.askQuestion(`How do you want to sort the items? (${sortingTypes.join("/")}))`);
+      sorting = sorting?.toLowerCase();
+
+      // Sort the data
+      let sortingType;
+      if (sorting === "date") {
+        sortingType = "id";
+      } else if (sorting === "title" || sorting === "priority" || sorting === "status") {
+        sortingType = sorting;
+      } else {
+        console.log(chalk.red(`Wrong sorting type, should be: ${chalk.italic("(date/title/priority/status)")}`));
+        return this.handleList(parameter);
+      }
+      return _.sortBy(list, `${sortingType}`);
+    }
+  }
+  listDisplay(list) {
+    list.map((el) => {
+      console.log(`${chalk.bold(el.title)} - ${el.priority} - ${el.status}`);
+    });
   }
 }
 
