@@ -230,10 +230,13 @@ class App {
     }
   }
 
-  async handleList(parameter) {
-    console.log(parameter);
-    // Run different query depends on the parameter specified
+  async handleList() {
+    // Ask for status type
     const parameters = ["all", "pending", "done"];
+    const [parameter] = await this.askQuestion(
+      `Enter status type of items you want to display (${parameters.join("/")})`
+    );
+    // Run different query depends on the parameter specified
     if (!parameters.includes(parameter?.toLowerCase())) {
       console.log(
         chalk.red(`Parameter: "${parameter}" does not exists. Here are the options: (${parameters.join("/")})`)
@@ -248,8 +251,32 @@ class App {
     return this.todoManage();
   }
 
-  handleDone() {
-    console.log("Done");
+  async handleDone() {
+    const [title] = await this.askQuestion(`Enter title of the item you want to mark as DONE`);
+
+    const { rows } = await this.client.query(
+      `SELECT * FROM todo_items where title = '${title}' AND user_id = '${this.userData.id}'`
+    );
+
+    // Check if the task exist
+    if (!rows.length) {
+      console.log(chalk.red(`Can not find an item with title: ${title}`));
+      return this.handleDone();
+    }
+
+    // Check if the task isn't already done
+
+    if (rows[0].status === "done") {
+      console.log(chalk.red(`The '${title}' task is already done`));
+      return this.handleDone();
+    }
+
+    // Edit the task status
+    await this.client.query(`UPDATE todo_items SET
+    status = 'done' WHERE
+    id = ${rows[0].id} AND user_id = '${this.userData.id}'`);
+    console.log(chalk.green(`${title} task has been done`));
+
     return this.todoManage();
   }
 
@@ -270,8 +297,32 @@ class App {
     return this.todoManage();
   }
 
-  handleDelete(id) {
-    console.log(`Deleting todo item with ID ${id}`);
+  async handleDelete() {
+    const [title] = await this.askQuestion(`Enter title of the item you want to delete`);
+
+    const { rows } = await this.client.query(
+      `SELECT * FROM todo_items where title = '${title}' AND user_id = '${this.userData.id}'`
+    );
+
+    // Check if the task exist
+    if (!rows.length) {
+      console.log(chalk.red(`Can not find an item with title: ${title}`));
+      return this.handleDone();
+    }
+
+    // Ask for confirmation
+    const [bool] = await this.askQuestion(`Are you sure you want to delete "${chalk.bold(title)}"? (y/n)`);
+    if (bool.toLowerCase() !== "y") {
+      console.log(chalk.red(`Item deleting canceled`));
+      return this.todoManage();
+    }
+
+    // Delete the task status
+    await this.client.query(
+      `DELETE FROM todo_items WHERE id IN (${rows[0].id}) AND user_id = '${this.userData.id}'`
+    );
+    console.log(chalk.green(`${title} task has been deleted`));
+
     return this.todoManage();
   }
 
